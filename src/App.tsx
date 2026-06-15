@@ -31,7 +31,7 @@ const INVITATION = {
 } as const;
 
 const backgroundMusic = "/01-Alex_Warren_-_Ordinary_(Wedding_version).mp3";
-const googleScriptUrl = "https://script.google.com/macros/s/AKfycbwhKuDxvxU7cs8qO89GSzknQS-zcMDFveClaH2CszQj2qVF3CFaAy-xMBiCiK6eBBwE/exec";
+const googleScriptUrl = "https://script.google.com/macros/s/AKfycbydo4nnhwVx2aq3CrX3XXFz4P2yzqYUdtpnYd2B2GyvVEYMSzfl5u1BlELga6glj7sn/exec";
 
 const publicImagePath = (fileName: string) => `/images/${fileName.replaceAll(" ", "%20")}`;
 
@@ -186,6 +186,10 @@ function CountdownTimer({ isDark = false }: { isDark?: boolean }) {
 
 
 export default function WeddingInvitation() {
+  const params = new URLSearchParams(window.location.search);
+  const guestPrefix = params.get("prefix");
+  const guestName = params.get("name");
+
   const [hasStarted, setHasStarted] = useState(false);
   const [isOpened, setIsOpened] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -540,7 +544,13 @@ export default function WeddingInvitation() {
 
                     <p className="text-[10px] md:text-[13px] tracking-[0.2em] md:tracking-[0.4em] font-medium leading-[2.5] md:leading-loose max-w-3xl border-t border-b border-[#c7d7c4]/50 py-6 md:py-8 uppercase">
                       Warmly request the honour of your presence<br />
-                      <span className="text-[#5c715e] font-bold text-sm md:text-base my-3 block">Invite You</span>
+                      {guestName ? (
+                        <span className="text-[#5c715e] font-bold text-sm md:text-base my-3 block normal-case">
+                          We cordially invite {guestPrefix ? `${guestPrefix} ` : ""}{guestName}
+                        </span>
+                      ) : (
+                        <span className="text-[#5c715e] font-bold text-sm md:text-base my-3 block">Invite You</span>
+                      )}
                       on the occasion of the marriage of their loving son & daughter<br />
                       <span className="text-[#5c715e] font-bold text-lg md:text-2xl mt-4 block font-playball capitalize">{INVITATION.couple.groomFull} & {INVITATION.couple.brideFull}</span>
                     </p>

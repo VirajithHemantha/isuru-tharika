@@ -1,158 +1,73 @@
-/**
- * Google Apps Script Web App for Wedding RSVP + Wishes
- *
- * Spreadsheet:
- * https://docs.google.com/spreadsheets/d/1uGmhFXDb6pmIye6Ym3sv665dNqgIO7V_64nTaOtRcb8/edit?usp=sharing
- *
- * Required sheets:
- * - rsvp
- * - wish
- */
-
-const SPREADSHEET_ID = "1uGmhFXDb6pmIye6Ym3sv665dNqgIO7V_64nTaOtRcb8";
-const RSVP_SHEET_NAME = "rsvp";
-const WISH_SHEET_NAME = "wish";
-
 function doPost(e) {
-  return handleRequest_(e);
+  return handleRequest(e);
 }
 
 function doGet(e) {
-  return handleRequest_(e);
+  return handleRequest(e);
 }
 
-function handleRequest_(e) {
+function handleRequest(e) {
+  // Add CORS headers by returning JSONP or handling it standardly
+  // Note: Google Apps script handles CORS if published correctly as "Anyone"
   try {
-    const params = parseParams_(e);
-    const action = String(params.action || "").trim().toLowerCase();
-
-    if (!action) {
-      return jsonResponse_({ ok: false, message: "Missing action" });
+    var doc = SpreadsheetApp.getActiveSpreadsheet();
+    var action = e.parameter.action;
+    var timestamp = new Date();
+    
+    // 1. Handle RSVP Submissions
+    if (action === 'rsvp') {
+      var sheetName = 'RSVPs';
+      var sheet = doc.getSheetByName(sheetName);
+      
+      // Auto-generate sheet and headers if it doesn't exist
+      if (!sheet) {
+        sheet = doc.insertSheet(sheetName);
+        sheet.appendRow(['Timestamp', 'Name', 'Guests', 'Dietary Notes']);
+        // Make the header bold
+        sheet.getRange("A1:D1").setFontWeight("bold");
+        sheet.setFrozenRows(1);
+      }
+      
+      var name = e.parameter.name || '';
+      var guests = e.parameter.guests || '';
+      var dietaryNotes = e.parameter.dietaryNotes || '';
+      
+      sheet.appendRow([timestamp, name, guests, dietaryNotes]);
+      
+    // 2. Handle Wishes Submissions
+    } else if (action === 'wish') {
+      var sheetName = 'Wishes';
+      var sheet = doc.getSheetByName(sheetName);
+      
+      // Auto-generate sheet and headers if it doesn't exist
+      if (!sheet) {
+        sheet = doc.insertSheet(sheetName);
+        sheet.appendRow(['Timestamp', 'Name', 'Message']);
+        // Make the header bold
+        sheet.getRange("A1:C1").setFontWeight("bold");
+        sheet.setFrozenRows(1);
+      }
+      
+      var name = e.parameter.name || '';
+      var message = e.parameter.message || '';
+      
+      sheet.appendRow([timestamp, name, message]);
+      
+    // Handle invalid action
+    } else {
+      return ContentService
+        .createTextOutput(JSON.stringify({ 'result': 'error', 'error': 'Invalid or missing action parameter' }))
+        .setMimeType(ContentService.MimeType.JSON);
     }
-
-    if (action === "rsvp") {
-      return jsonResponse_(saveRsvp_(params));
-    }
-
-    if (action === "wish") {
-      return jsonResponse_(saveWish_(params));
-    }
-
-    return jsonResponse_({ ok: false, message: "Invalid action" });
-  } catch (error) {
-    return jsonResponse_({
-      ok: false,
-      message: error && error.message ? error.message : "Unexpected error",
-    });
+    
+    // Return success response
+    return ContentService
+      .createTextOutput(JSON.stringify({ 'result': 'success' }))
+      .setMimeType(ContentService.MimeType.JSON);
+      
+  } catch(error) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ 'result': 'error', 'error': error.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
   }
-}
-
-function saveRsvp_(params) {
-  const sheet = getSheet_(RSVP_SHEET_NAME);
-
-  ensureHeader_(sheet, [
-    "timestamp",
-    "name",
-    "guests",
-    "attendance",
-    "dietaryNotes",
-  ]);
-
-  const name = String(params.name || "").trim();
-  const guests = String(params.guests || "").trim();
-  const dietaryNotes = String(params.dietaryNotes || "").trim();
-
-  if (!name) {
-    return { ok: false, message: "Name is required" };
-  }
-
-  const attendance = guests === "0" ? "Declined" : "Attending";
-
-  sheet.appendRow([
-    new Date(),
-    name,
-    guests || "1",
-    attendance,
-    dietaryNotes,
-  ]);
-
-  return { ok: true, message: "RSVP saved" };
-}
-
-function saveWish_(params) {
-  const sheet = getSheet_(WISH_SHEET_NAME);
-
-  ensureHeader_(sheet, ["timestamp", "name", "message"]);
-
-  const name = String(params.name || "").trim();
-  const message = String(params.message || "").trim();
-
-  if (!name || !message) {
-    return { ok: false, message: "Name and message are required" };
-  }
-
-  sheet.appendRow([new Date(), name, message]);
-
-  return { ok: true, message: "Wish saved" };
-}
-
-function getSheet_(sheetName) {
-  const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
-  let sheet = spreadsheet.getSheetByName(sheetName);
-
-  if (!sheet) {
-    sheet = spreadsheet.insertSheet(sheetName);
-  }
-
-  return sheet;
-}
-
-function ensureHeader_(sheet, headers) {
-  if (sheet.getLastRow() === 0) {
-    sheet.appendRow(headers);
-  }
-}
-
-function parseParams_(e) {
-  const params = Object.assign({}, (e && e.parameter) || {});
-
-  if (!(e && e.postData && e.postData.contents)) {
-    return params;
-  }
-
-  const contents = String(e.postData.contents || "").trim();
-  if (!contents) {
-    return params;
-  }
-
-  if (contents.charAt(0) === "{") {
-    const json = JSON.parse(contents);
-    return Object.assign(params, json);
-  }
-
-  const parsed = parseFormEncoded_(contents);
-  return Object.assign(params, parsed);
-}
-
-function parseFormEncoded_(raw) {
-  const result = {};
-  const pairs = String(raw || "").split("&");
-
-  for (var i = 0; i < pairs.length; i++) {
-    if (!pairs[i]) continue;
-    var parts = pairs[i].split("=");
-    var key = decodeURIComponent((parts[0] || "").replace(/\+/g, " "));
-    var value = decodeURIComponent((parts.slice(1).join("=") || "").replace(/\+/g, " "));
-    if (key) {
-      result[key] = value;
-    }
-  }
-
-  return result;
-}
-
-function jsonResponse_(data) {
-  return ContentService
-    .createTextOutput(JSON.stringify(data))
-    .setMimeType(ContentService.MimeType.JSON);
 }
